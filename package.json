@@ -5,7 +5,7 @@
   "icon": "img/icon.png",
   "author": "Clarence Pan<clarence-pan@foxmail.com>",
   "publisher": "Clarence Pan",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "license": "MIT",
   "homepage": "https://github.com/clarence-pan/vscode-ava-test-adapter",
   "repository": {
