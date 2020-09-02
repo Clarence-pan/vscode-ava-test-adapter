@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2016",
-    "lib": [ "es2016" ],
+    "lib": ["es2016", "es2017", "es2018", "es2019"],
     "module": "commonjs",
     "outDir": "out",
     "importHelpers": true,
@@ -10,10 +10,9 @@
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "removeComments": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "rootDir": "src"
   },
-  "include": [
-    "src/main.ts"
-  ]
+  "include": ["src/*.ts", "src/*.d.ts"]
 }
-  

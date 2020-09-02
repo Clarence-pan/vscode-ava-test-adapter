@@ -1,19 +1,19 @@
 {
-  "name": "vscode-example-test-adapter",
-  "displayName": "Example Test Explorer",
-  "description": "Run your Example tests in the Sidebar of Visual Studio Code",
+  "name": "@clarencep/vscode-ava-test-adapter",
+  "displayName": "AVA Test Explorer",
+  "description": "Run your AVA tests in the Sidebar of Visual Studio Code",
   "icon": "img/icon.png",
-  "author": "Holger Benl <hbenl@evandor.de>",
-  "publisher": "hbenl",
+  "author": "Clarence Pan<clarence-pan@foxmail.com>",
+  "publisher": "Clarence Pan",
   "version": "0.0.1",
   "license": "MIT",
-  "homepage": "https://github.com/hbenl/vscode-example-test-adapter",
+  "homepage": "https://github.com/clarence-pan/vscode-ava-test-adapter",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hbenl/vscode-example-test-adapter.git"
+    "url": "https://github.com/clarence-pan/vscode-ava-test-adapter.git"
   },
   "bugs": {
-    "url": "https://github.com/hbenl/vscode-example-test-adapter/issues"
+    "url": "https://github.com/clarence-pan/vscode-ava-test-adapter/issues"
   },
   "categories": [
     "Other"
@@ -32,13 +32,20 @@
     "publish": "vsce publish"
   },
   "dependencies": {
-    "tslib": "^1.9.3",
+    "@types/glob": "^7.1.3",
+    "@types/glob-to-regexp": "^0.4.0",
+    "@types/lodash": "^4.14.161",
+    "glob": "^7.1.6",
+    "glob-to-regexp": "^0.4.1",
+    "lodash": "^4.17.20",
+    "tap-parser": "^10.1.0",
+    "tslib": "^2.0.1",
     "vscode-test-adapter-api": "^1.7.0",
     "vscode-test-adapter-util": "^0.7.0"
   },
   "devDependencies": {
     "@types/vscode": "~1.23.0",
-    "typescript": "^3.5.3",
+    "typescript": "^4.0.2",
     "vsce": "^1.65.0"
   },
   "engines": {
@@ -53,14 +60,43 @@
   "contributes": {
     "configuration": {
       "type": "object",
-      "title": "Example Test Explorer configuration",
+      "title": "AVA Test Explorer configuration",
       "properties": {
-        "exampleExplorer.logpanel": {
-          "description": "write diagnotic logs to an output panel",
+        "avaTestExplorer.workingDirectory": {
+          "description": "the executable AVA location(default is the workspace directory)",
+          "type": "string",
+          "scope": "resource"
+        },
+        "avaTestExplorer.avaExecutable": {
+          "description": "the executable AVA location(default is ./node_modules/.bin/ava)",
+          "type": "string",
+          "scope": "resource"
+        },
+        "avaTestExplorer.avaExecArgs": {
+          "description": "the execution arguments for AVA (default is only '--tap')",
+          "type": "array",
+          "default": [
+            "--tap"
+          ],
+          "scope": "resource"
+        },
+        "avaTestExplorer.avaConfigFile": {
+          "description": "the AVA configuration file location(default is ./ava.config.js)",
+          "type": "string",
+          "scope": "resource"
+        },
+        "avaTestExplorer.useShell": {
+          "description": "use shell to run commands(Not recommended)",
           "type": "boolean",
           "scope": "resource"
         },
-        "exampleExplorer.logfile": {
+        "avaTestExplorer.logpanel": {
+          "description": "write diagnotic logs to an output panel",
+          "type": "boolean",
+          "default": true,
+          "scope": "resource"
+        },
+        "avaTestExplorer.logfile": {
           "description": "write diagnostic logs to the given file",
           "type": "string",
           "scope": "resource"

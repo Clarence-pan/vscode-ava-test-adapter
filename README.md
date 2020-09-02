@@ -1,4 +1,11 @@
-# Example Test Adapter for Visual Studio Code
+# AVA Test Adapter for Visual Studio Code
+
+## How to use?
+
+TODO...
+
+
+# About Development
 
 This repository contains an example for implementing a `TestAdapter` extension that works with the
 [Test Explorer](https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer) extension.
