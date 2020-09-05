@@ -79,7 +79,13 @@ export class AvaTests {
 
     await this.refreshTestFiles();
 
-    const testSuiteInfo = await this.runAva();
+    const testSuiteInfo = await this.runAva({
+      onStart: (_process, tapParser: ITapParser) => {
+        tapParser.on('assert', (assert) => {
+          this.testStatesEmitter.fire(parseTapAssertIntoTestEvent(assert));
+        });
+      },
+    });
 
     Object.assign(this.latestTestSuite, testSuiteInfo.rootSuite);
 
