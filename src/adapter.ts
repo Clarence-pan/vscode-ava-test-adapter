@@ -178,6 +178,7 @@ export class AvaTestAdapter implements TestAdapter {
       name: 'vscode-ava-test-adapter',
       request: 'launch',
       type: 'node',
+
       runtimeExecutable: path.resolve(
         this.avaTests.cwd,
         this.avaTests.avaExecutable,
