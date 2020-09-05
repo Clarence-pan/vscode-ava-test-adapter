@@ -164,7 +164,10 @@ export class AvaTestAdapter implements TestAdapter {
     // start a test run in a child process and attach the debugger to it...
 
     const testFilters = this.avaTests.mapTestIdsToCmdLineFilters(tests);
-    const args = [...this.avaTests.avaExecArgs, ...testFilters];
+    const args = [
+      ...this.avaTests.avaExecArgs.filter((x) => x !== '--tap' && x !== '-t'),
+      ...testFilters,
+    ];
 
     const debugConfiguration: vscode.DebugConfiguration = {
       console: true,
