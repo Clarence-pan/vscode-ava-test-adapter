@@ -48,6 +48,8 @@ export class AvaTests {
   };
   protected avaConfig!: { files: string[] | undefined };
   protected avaTestFiles: string[] = [];
+  protected tapProcesses = new Set<ChildProcessWithoutNullStreams>();
+  protected isCanceled = false;
 
   public constructor(
     protected readonly log: ILogger,
@@ -72,9 +74,11 @@ export class AvaTests {
   public dispose() {}
 
   public async loadTests(): Promise<{
-    rootSuite: TestSuiteInfo;
+    rootSuite: TestSuiteInfo | undefined;
     testEvents?: TestEvent[];
   }> {
+    this.isCanceled = false;
+
     this.log.debug(`Load AVA tests in ${this.cwd}`);
 
     await this.refreshTestFiles();
@@ -87,15 +91,28 @@ export class AvaTests {
       },
     });
 
-    Object.assign(this.latestTestSuite, testSuiteInfo.rootSuite);
-
-    return testSuiteInfo;
+    if (this.isCanceled) {
+      // throw new Error('operation is canceled'); // 这会导致所有的测试用例都没了 -_-||
+      // 先返回上次最新的吧
+      return {
+        rootSuite: this.latestTestSuite,
+      };
+    } else {
+      Object.assign(this.latestTestSuite, testSuiteInfo.rootSuite);
+      return testSuiteInfo;
+    }
   }
 
   public async runTests(tests: string[]): Promise<void> {
+    this.isCanceled = false;
+
     await this.refreshTestFiles();
 
     for (const suiteOrTestId of tests) {
+      if (this.isCanceled) {
+        break;
+      }
+
       const node = this.findNode(this.latestTestSuite, suiteOrTestId);
       if (node) {
         try {
@@ -108,6 +125,10 @@ export class AvaTests {
       } else {
         this.log.warn(`Cannot find "${suiteOrTestId}"!`);
       }
+    }
+
+    if (this.isCanceled) {
+      throw new Error('operation is canceled');
     }
   }
 
@@ -130,6 +151,19 @@ export class AvaTests {
       ..._.uniq(files),
       ..._.uniq(testNames).flatMap((name) => ['--match', name]),
     ];
+  }
+
+  public cancelAll() {
+    this.isCanceled = true;
+    this.tapProcesses.forEach((proc) => {
+      try {
+        if (!proc.killed) {
+          proc.kill('SIGINT');
+        }
+      } catch (e) {
+        this.log.warn(`Failed to kill proc#${proc.pid}: `, e);
+      }
+    });
   }
 
   private findNode(
@@ -168,6 +202,10 @@ export class AvaTests {
         await this.onReload();
       } else {
         for (const child of node.children) {
+          if (this.isCanceled) {
+            break;
+          }
+
           await this.runNode(child);
         }
       }
@@ -298,6 +336,8 @@ export class AvaTests {
         shell: this.useShell,
       });
 
+      this.tapProcesses.add(tapProcess);
+
       const stdoutChunks: string[] = [];
 
       let hasGotResults = false;
@@ -349,6 +389,7 @@ export class AvaTests {
       });
 
       tapProcess.on('error', (err) => {
+        this.tapProcesses.delete(tapProcess);
         this.log.debug('ava process failed: ', err);
         setTimeout(() => {
           if (!hasGotResults) {
@@ -356,6 +397,14 @@ export class AvaTests {
             reject(new Error(`${err}`));
           }
         }, 1000);
+      });
+
+      tapProcess.on('close', () => {
+        this.tapProcesses.delete(tapProcess);
+      });
+
+      tapProcess.on('exit', () => {
+        this.tapProcesses.delete(tapProcess);
       });
 
       if (onStart) {

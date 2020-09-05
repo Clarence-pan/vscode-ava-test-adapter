@@ -148,15 +148,17 @@ export class AvaTestAdapter implements TestAdapter {
   async run(tests: string[]): Promise<void> {
     this.log.info(`Running ava tests ${JSON.stringify(tests)}`);
 
-    this.testStatesEmitter.fire(<TestRunStartedEvent>{
-      type: 'started',
-      tests,
-    });
+    try {
+      this.testStatesEmitter.fire(<TestRunStartedEvent>{
+        type: 'started',
+        tests,
+      });
 
-    // in a "real" TestAdapter this would start a test run in a child process
-    await this.avaTests.runTests(tests);
-
-    this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
+      // in a "real" TestAdapter this would start a test run in a child process
+      await this.avaTests.runTests(tests);
+    } finally {
+      this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
+    }
   }
 
   /* implement this method if your TestAdapter supports debugging tests*/
@@ -188,8 +190,7 @@ export class AvaTestAdapter implements TestAdapter {
 
   cancel(): void {
     // in a "real" TestAdapter this would kill the child process for the current test run (if there is any)
-    // throw new Error('Method not implemented.');
-    // TODO...
+    this.avaTests.cancelAll();
   }
 
   dispose(): void {
