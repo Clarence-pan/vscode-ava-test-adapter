@@ -10,7 +10,7 @@ import {
   RetireEvent,
 } from 'vscode-test-adapter-api';
 import { Log } from 'vscode-test-adapter-util';
-import * as util from 'util';
+
 import * as path from 'path';
 import { AvaTests } from './ava-tests';
 
@@ -20,7 +20,6 @@ import { AvaTests } from './ava-tests';
  */
 export class AvaTestAdapter implements TestAdapter {
   private disposables: { dispose(): void }[] = [];
-  private isLoadingAllTests?: boolean;
   private readonly testsEmitter = new vscode.EventEmitter<
     TestLoadStartedEvent | TestLoadFinishedEvent
   >();
@@ -58,7 +57,6 @@ export class AvaTestAdapter implements TestAdapter {
 
     this.avaTests = new AvaTests(
       this.log,
-      this.load.bind(this),
       this.testsEmitter,
       this.testStatesEmitter,
     );
@@ -97,52 +95,7 @@ export class AvaTestAdapter implements TestAdapter {
   }
 
   async load(): Promise<void> {
-    if (this.isLoadingAllTests) {
-      this.log.warn('Already be loading AVA tests');
-      return;
-    }
-
-    try {
-      this.isLoadingAllTests = true;
-      this.log.info('Loading AVA tests');
-
-      this.retireEmitter.fire(<RetireEvent>{});
-
-      this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
-
-      const loadedTests = await this.avaTests.loadTests();
-
-      this.log.info('AVA tests are loaded.');
-
-      // prettier-ignore
-      this.log.info('Loaded AVA tests:', util.inspect({
-          rootSuite: loadedTests.rootSuite,
-          testEvents: loadedTests.testEvents,
-        }, false, 15, false));
-
-      this.testsEmitter.fire(<TestLoadFinishedEvent>{
-        type: 'finished',
-        suite: loadedTests.rootSuite,
-      });
-
-      setTimeout(() => {
-        if (loadedTests.testEvents) {
-          loadedTests.testEvents.forEach((event) => {
-            this.testStatesEmitter.fire(event);
-          });
-        }
-      }, 50);
-    } catch (err) {
-      this.log.error('Failed to load AVA tests.');
-      this.log.error('Error detail:', err);
-      this.testsEmitter.fire(<TestLoadFinishedEvent>{
-        type: 'finished',
-        suite: undefined,
-        errorMessage: `${err}`,
-      });
-    } finally {
-      this.isLoadingAllTests = false;
-    }
+    this.avaTests.loadTests();
   }
 
   async run(tests: string[]): Promise<void> {

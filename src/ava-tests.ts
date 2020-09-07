@@ -40,6 +40,7 @@ type AvaExecutionResult = {
 };
 
 export class AvaTests {
+  private isLoadingAllTests?: boolean;
   protected latestTestSuite: TestSuiteInfo = {
     type: 'suite',
     id: ROOT,
@@ -54,7 +55,6 @@ export class AvaTests {
 
   public constructor(
     protected readonly log: ILogger,
-    protected readonly onReload: () => Promise<void>,
     protected readonly testsEmitter: vscode.EventEmitter<
       TestLoadStartedEvent | TestLoadFinishedEvent
     >,
@@ -74,33 +74,24 @@ export class AvaTests {
 
   public dispose() {}
 
-  public async loadTests(): Promise<{
-    rootSuite: TestSuiteInfo | undefined;
-    testEvents?: TestEvent[];
-  }> {
+  public async loadTests(): Promise<void> {
     this.isCanceled = false;
+    if (this.isLoadingAllTests) {
+      this.log.warn('Already is loading all tests!');
+      return;
+    }
 
-    this.log.debug(`Load AVA tests in ${this.cwd}`);
+    try {
+      this.debug(`Load AVA tests in ${this.cwd}`);
+      this.testsEmitter.fire({ type: 'started' });
 
-    await this.refreshTestFiles();
+      await this.refreshTestFiles();
 
-    const testSuiteInfo = await this.runAva({
-      onStart: (_process, tapParser: ITapParser) => {
-        tapParser.on('assert', (assert) => {
-          this.testStatesEmitter.fire(parseTapAssertIntoTestEvent(assert));
-        });
-      },
-    });
-
-    if (this.isCanceled) {
-      // throw new Error('operation is canceled'); // 这会导致所有的测试用例都没了 -_-||
-      // 先返回上次最新的吧
-      return {
-        rootSuite: this.latestTestSuite,
-      };
-    } else {
-      Object.assign(this.latestTestSuite, testSuiteInfo.rootSuite);
-      return testSuiteInfo;
+      this.latestTestSuite = this.transformTestFilesIntoTestSuitesTree();
+    } catch (e) {
+      this.log.error('Failed to load all tests: ', e);
+    } finally {
+      this.testsEmitter.fire({ type: 'finished', suite: this.latestTestSuite });
     }
   }
 
@@ -117,11 +108,11 @@ export class AvaTests {
       const node = this.findNode(this.latestTestSuite, suiteOrTestId);
       if (node) {
         try {
-          this.log.debug(`Run ${node.type} "${node.id}" ...`);
+          this.debug(`Run ${node.type} "${node.id}" ...`);
           await this.runNode(node);
-          this.log.debug(`Run ${node.type} "${node.id}" ... [DONE]`);
+          this.debug(`Run ${node.type} "${node.id}" ... [DONE]`);
         } catch (err) {
-          this.log.debug(`Run ${node.type} "${node.id}" ... [FAIL]`, err);
+          this.debug(`Run ${node.type} "${node.id}" ... [FAIL]`, err);
         }
       } else {
         this.log.warn(`Cannot find "${suiteOrTestId}"!`);
@@ -167,6 +158,14 @@ export class AvaTests {
     });
   }
 
+  private async updateTestSuites(
+    rootSuite: TestSuiteInfo = this.latestTestSuite,
+  ) {
+    // this.debug('update test suites: ', util.inspect(rootSuite, false, 10));
+    this.testsEmitter.fire({ type: 'started' });
+    this.testsEmitter.fire({ type: 'finished', suite: rootSuite });
+  }
+
   private findNode(
     searchNode: TestSuiteInfo | TestInfo,
     id: string,
@@ -199,8 +198,8 @@ export class AvaTests {
     });
 
     try {
-      if (node.id === ROOT) {
-        await this.onReload();
+      if (node.file && !node.children.length) {
+        await this.runTestSuiteAndRefreshingChildrenTests(node);
       } else {
         for (const child of node.children) {
           if (this.isCanceled) {
@@ -219,6 +218,44 @@ export class AvaTests {
         state: 'completed',
       });
     }
+  }
+
+  private async runTestSuiteAndRefreshingChildrenTests(node: TestSuiteInfo) {
+    this.log.info('run test suite refreshing children: ', node.id);
+
+    const testCases: TestInfo[] = [];
+    const testEvents: TestEvent[] = [];
+    await this.runAva({
+      execArgs: node.file ? [node.file.slice(this.cwd.length + 1)] : [],
+      onStart: (_process, tapParser: ITapParser) => {
+        tapParser.on('assert', (assert) => {
+          testCases.push({
+            type: 'test',
+            label: assert.name,
+            id: node.id + TEST_NAME_SEP + assert.name,
+            file: node.file,
+          });
+
+          testEvents.push({
+            ...parseTapAssertIntoTestEvent(assert),
+            test: node.id + TEST_NAME_SEP + assert.name,
+          });
+        });
+      },
+    });
+
+    this.debug(`${node.id} result rootSuite:`, { testCases, testEvents });
+
+    node.children = testCases;
+
+    await this.updateTestSuites();
+
+    // 这里不能直接发送这些个事件，否则无法更新状态的
+    setTimeout(() => {
+      testEvents.forEach((event) => {
+        this.testStatesEmitter.fire(event);
+      });
+    }, 15);
   }
 
   private async runTestCase(node: TestInfo) {
@@ -321,7 +358,7 @@ export class AvaTests {
     return new Promise((resolve, reject) => {
       const actualArgs = [...this.avaExecArgs, ...execArgs];
 
-      this.log.debug(
+      this.debug(
         'EXECUTE ',
         execCmd,
         actualArgs
@@ -348,10 +385,7 @@ export class AvaTests {
         async (results: any) => {
           hasGotResults = true;
 
-          this.log.debug(
-            'got results: ',
-            util.inspect(results, false, 10, false),
-          );
+          this.debug('got results: ', util.inspect(results, false, 10, false));
 
           try {
             const testSuiteInfo = await convertTapParserResultsToTestSuiteInfo(
@@ -379,19 +413,19 @@ export class AvaTests {
         stdoutChunks.push(chunk);
 
         `${chunk}`.split('\n').forEach((line) => {
-          this.log.debug('[STDOUT]', line);
+          this.debug('[STDOUT]', line);
         });
       });
 
       tapProcess.stderr.on('data', (chunk) => {
         `${chunk}`.split('\n').forEach((line) => {
-          this.log.debug('[STDERR]', line);
+          this.debug('[STDERR]', line);
         });
       });
 
       tapProcess.on('error', (err) => {
         this.tapProcesses.delete(tapProcess);
-        this.log.debug('ava process failed: ', err);
+        this.debug('ava process failed: ', err);
         setTimeout(() => {
           if (!hasGotResults) {
             this.log.info('failed to load tests:', err);
@@ -564,6 +598,68 @@ export class AvaTests {
 
   private getErrorMessage(error: any) {
     return `${error}`;
+  }
+
+  private transformTestFilesIntoTestSuitesTree(): TestSuiteInfo {
+    const root: TestSuiteInfo = {
+      type: 'suite',
+      id: ROOT,
+      label: 'AVA Tests',
+      children: [],
+    };
+
+    const suites = new Map<string, TestSuiteInfo>();
+    const addTest = (suitePath: string[], test: TestSuiteInfo) => {
+      if (suitePath.length === 0) {
+        root.children.push(test);
+        return;
+      }
+
+      const suitePathId = suitePath.join(TEST_NAME_SEP);
+      const targetSuite = suites.get(suitePathId);
+      if (targetSuite) {
+        targetSuite.children.push(test);
+        return;
+      }
+
+      const newSuite: TestSuiteInfo = {
+        type: 'suite',
+        id: suitePathId,
+        label: suitePath[suitePath.length - 1],
+        children: [test],
+      };
+
+      suites.set(suitePathId, newSuite);
+
+      addTest(suitePath.slice(0, suitePath.length - 1), newSuite);
+    };
+
+    this.avaTestFiles.forEach((file) => {
+      const fileParts = file
+        .replace(/\\/g, '/')
+        .replace(/\.\//g, '')
+        .replace(/\.(test|spec)\.(\w+)$/, '.$2')
+        .split(/\//g)
+        .slice(1);
+
+      addTest(fileParts.slice(0, fileParts.length - 1), {
+        type: 'suite',
+        id: fileParts.join(TEST_NAME_SEP),
+        label: fileParts[fileParts.length - 1],
+        file: path.join(this.cwd, file),
+        children: [],
+      });
+    });
+
+    this.debug('Loaded suites: ', util.inspect(root, false, 10));
+
+    return root;
+  }
+
+  debug(fmt: string, ...args: any[]) {
+    if (process.env.NODE_ENV === 'development') {
+      this.log['debug'](fmt, ...args);
+    }
   }
 }
 
