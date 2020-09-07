@@ -66,6 +66,12 @@
       "type": "object",
       "title": "AVA Test Explorer configuration",
       "properties": {
+        "avaTestExplorer.autoDetectLernaWorkspaces": {
+          "description": "enable lerna workspaces support",
+          "type": "boolean",
+          "default": true,
+          "scope": "resource"
+        },
         "avaTestExplorer.workingDirectory": {
           "description": "the executable AVA location(default is the workspace directory)",
           "type": "string",

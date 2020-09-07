@@ -62,20 +62,13 @@ export class AvaTestAdapter implements TestAdapter {
     );
 
     const initAvaTests = () => {
-      this.avaTests.cwd =
-        this.configSection.get('workingDirectory') || this.workspace.uri.fsPath;
+      const options = this.getOptions();
 
-      this.avaTests.avaExecutable =
-        this.configSection.get('avaExecutable') || './node_modules/.bin/ava';
-
-      this.avaTests.avaExecArgs = this.configSection.get('avaExecArgs') || [
-        '--tap',
-      ];
-
-      this.avaTests.avaConfigFile =
-        this.configSection.get('avaConfigFile') || './ava.config.js';
-
-      this.avaTests.useShell = this.configSection.get('useShell') ?? false;
+      this.avaTests.cwd = options.workingDirectory;
+      this.avaTests.avaExecutable = options.avaExecutable;
+      this.avaTests.avaExecArgs = options.avaExecArgs;
+      this.avaTests.avaConfigFile = options.avaConfigFile;
+      this.avaTests.useShell = options.useShell;
 
       this.avaTests.init();
     };
@@ -92,6 +85,27 @@ export class AvaTestAdapter implements TestAdapter {
     this.disposables.push(this.testStatesEmitter);
     this.disposables.push(this.autorunEmitter);
     this.disposables.push(this.avaTests);
+  }
+
+  getOptions() {
+    return {
+      autoDetectLernaWorkspaces: this.configSection.get(
+        'autoDetectLernaWorkspaces',
+      ) as boolean,
+      workingDirectory:
+        (this.configSection.get('workingDirectory') as string) ||
+        this.workspace.uri.fsPath,
+      avaExecutable:
+        (this.configSection.get('avaExecutable') as string) ||
+        './node_modules/.bin/ava',
+      avaExecArgs: (this.configSection.get('avaExecArgs') as string[]) || [
+        '--tap',
+      ],
+      avaConfigFile:
+        (this.configSection.get('avaConfigFile') as string) ||
+        './ava.config.js',
+      useShell: this.configSection.get('useShell') as boolean,
+    };
   }
 
   async load(): Promise<void> {
