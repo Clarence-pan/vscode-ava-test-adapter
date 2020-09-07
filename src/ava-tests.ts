@@ -46,6 +46,7 @@ export class AvaTests {
     label: 'All Suite', // the label of the root node should be the name of the testing framework
     children: [],
   };
+
   protected avaConfig!: { files: string[] | undefined };
   protected avaTestFiles: string[] = [];
   protected tapProcesses = new Set<ChildProcessWithoutNullStreams>();
@@ -425,16 +426,9 @@ export class AvaTests {
 
   private tryLoadAvaConfig() {
     try {
-      const cfgFilePath = path.resolve(this.cwd, this.avaConfigFile);
-      const cfgFileContent = fs.readFileSync(cfgFilePath, 'utf8');
-
-      // TODO: 还有没有更好的方法？
-      const config = /export default/.test(cfgFileContent)
-        ? new Function(
-            `${cfgFileContent.replace(/export default/, 'return ')}`,
-          ).call(undefined)
-        : require(cfgFilePath);
-
+      const config =
+        this.tryLoadAvaConfigFromIndividualConfigFile() ||
+        this.tryLoadAvaConfigFromPackageJson();
       if (typeof config === 'object' && config) {
         return config;
       } else {
@@ -450,6 +444,47 @@ export class AvaTests {
     return {
       files: DEFAULT_FILES,
     };
+  }
+
+  private tryLoadAvaConfigFromPackageJson() {
+    try {
+      const cfgFilePath = path.resolve(this.cwd, 'package.json');
+      const cfgFileContent = fs.readFileSync(cfgFilePath, 'utf8');
+
+      const config = JSON.parse(cfgFileContent || '{}');
+      return config.ava;
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
+        this.log.warn(
+          `Failed to load config from package.json (cwd=${this.cwd})`,
+          e,
+        );
+      }
+      return null;
+    }
+  }
+
+  private tryLoadAvaConfigFromIndividualConfigFile() {
+    try {
+      const cfgFilePath = path.resolve(this.cwd, this.avaConfigFile);
+      const cfgFileContent = fs.readFileSync(cfgFilePath, 'utf8');
+
+      // TODO: 还有没有更好的方法？
+      const config = /export default/.test(cfgFileContent)
+        ? new Function(
+            `${cfgFileContent.replace(/export default/, 'return ')}`,
+          ).call(undefined)
+        : require(cfgFilePath);
+      return config;
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
+        this.log.warn(
+          `Failed to load config file: ${this.avaConfigFile} cwd=${this.cwd}`,
+          e,
+        );
+      }
+      return null;
+    }
   }
 
   private createDefaultTestEventForSingleTestCase(
