@@ -85,6 +85,9 @@ export class AvaTests {
       this.debug(`Load AVA tests in ${this.cwd}`);
       this.testsEmitter.fire({ type: 'started' });
 
+      // 重新加载下配置啥的
+      this.init();
+
       await this.refreshTestFiles();
 
       this.latestTestSuite = this.transformTestFilesIntoTestSuitesTree();
