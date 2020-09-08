@@ -639,8 +639,7 @@ export class AvaTests {
         .replace(/\\/g, '/')
         .replace(/\.\//g, '')
         .replace(/\.(test|spec)\.(\w+)$/, '.$2')
-        .split(/\//g)
-        .slice(1);
+        .split(/\//g);
 
       addTest(fileParts.slice(0, fileParts.length - 1), {
         type: 'suite',
